@@ -41,7 +41,8 @@ ListEntitiesResponses = (
 
 
 StateResponses = (
-    api.AlarmControlPanelStateResponse
+    None
+    | api.AlarmControlPanelStateResponse
     | api.BinarySensorStateResponse
     | api.ClimateStateResponse
     | api.CoverStateResponse
@@ -66,7 +67,8 @@ StateResponses = (
 
 
 CommandRequests = (
-    api.AlarmControlPanelCommandRequest
+    None
+    | api.AlarmControlPanelCommandRequest
     | api.ButtonCommandRequest
     | api.ClimateCommandRequest
     | api.CoverCommandRequest
@@ -116,6 +118,10 @@ class BaseEntity[TListEntitiesResponse, TStateResponse, TCommandRequest](ABC):
         self, command: TCommandRequest | None
     ) -> TStateResponse | None:
         pass
+
+
+Entity = BaseEntity[ListEntitiesResponses, StateResponses, CommandRequests]
+Entities = list[Entity]
 
 
 class MediaPlayerEntity(

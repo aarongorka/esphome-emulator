@@ -10,14 +10,8 @@ Just for fun and to learn protobuf and sockets in Python.
 
 ```console
 python3 -m pipx install git+https://github.com/aarongorka/esphome_emulator.git
-curl -Ls https://raw.githubusercontent.com/aarongorka/esphome_emulator/refs/heads/main/esphome_emulator.service -o ~/.config/systemd/user/esphome_emulator.service
-systemctl --user daemon-reload
-openssl rand -base64 45 | head -c 45 | xsel -b
-VISUAL=nvim systemctl edit --user esphome_emulator
-[Service]
-ExecStart=/home/<username>/.local/bin/esphome_emulator
-Environment="ESPHOME_EMULATOR_API_KEY=<API KEY>"
-systemctl enable --now --user esphome_emulator
+esphome_emulator install # or alternatively, set up the systemd service yourself
+systemctl daemon-reload --user && systemctl enable --user --now esphome_emulator
 ```
 
 ## Limitations

@@ -12,9 +12,16 @@ import time
 from itertools import cycle
 
 import typer
+from google.protobuf import message
 from google.protobuf.message import Message
 from noise.connection import NoiseConnection
 from rich.logging import RichHandler
+
+from esphome_emulator.entities import (
+    BaseEntity,
+    Entities,
+    StateResponses,
+)
 
 logging.basicConfig(
     level=logging.CRITICAL,
@@ -27,7 +34,6 @@ logger.debug("Logging enabled.")
 
 app = typer.Typer(help="ESPHome device in Python.", pretty_exceptions_enable=False)
 
-# from . import entities as entities
 import base64
 import socket
 import threading
@@ -37,8 +43,6 @@ from google.protobuf.internal.decoder import _DecodeVarint32  # pyright: ignore
 from zeroconf import ServiceInfo, ServiceListener, Zeroconf
 
 from . import api_pb2 as api
-
-# from aioesphomeapi import api_pb2 as api
 from . import sensors as sensors
 
 
@@ -47,7 +51,7 @@ def get_options(descriptor):
     return {k.name: v for k, v in descriptor.GetOptions().ListFields()}
 
 
-def read_varint(socket):
+def read_varint(socket: socket.socket) -> int:
     """Read a VarInt from the socket."""
 
     varint_buff = []
@@ -62,11 +66,15 @@ def read_varint(socket):
 
 
 # https://stackoverflow.com/q/68968796
-encode = lambda n: n.to_bytes(n.bit_length() // 8 + 1, "little", signed=False)
-decode = lambda x: int.from_bytes(x, "little", signed=False)
+def encode(n):
+    return n.to_bytes(n.bit_length() // 8 + 1, "little", signed=False)
 
 
-def encode_message(message, proto=b"\x00"):
+def decode(x):
+    return int.from_bytes(x, "little", signed=False)
+
+
+def encode_message(message: message.Message, proto: bytes = b"\x00") -> bytes:
     try:
         id = int(get_options(message.DESCRIPTOR).get("id"))  # pyright: ignore
     except ValueError as e:
@@ -80,7 +88,7 @@ def encode_message(message, proto=b"\x00"):
     )
 
 
-def wait_for_indicator(client_socket, indicator=b"\x00"):
+def wait_for_indicator(client_socket: socket.socket, indicator: bytes = b"\x00"):
     logger.debug(f"Waiting for {indicator} byte...")
 
     # start = datetime.datetime.now(datetime.timezone.utc)
@@ -95,7 +103,7 @@ def wait_for_indicator(client_socket, indicator=b"\x00"):
             # raise Exception(f"Received bad indicator byte: {byte}")
 
 
-def get_id_from_message_name(name):
+def get_id_from_message_name(name: str) -> int | None:
     descriptor = api.DESCRIPTOR.pool.FindMessageTypeByName(name)
     id = get_options(descriptor).get("id")
     return id
@@ -107,17 +115,18 @@ def get_id_to_message_mapping(api) -> dict[int, str]:
     return {id: name for name, id in reverse_mapping.items() if id is not None}
 
 
-def send_states(client_socket, states):
+def send_states(client_socket: socket.socket, states: list[StateResponses]):
     for response in states:
-        encoded_response = encode_message(response)
-        logger.debug(f"Sending {response.DESCRIPTOR.name}: {encoded_response}...")
-        client_socket.sendall(encoded_response)
-        logger.debug(f"Sent {response.DESCRIPTOR.name}.")
+        if response:
+            encoded_response = encode_message(response)
+            logger.debug(f"Sending {response.DESCRIPTOR.name}: {encoded_response}...")
+            client_socket.sendall(encoded_response)
+            logger.debug(f"Sent {response.DESCRIPTOR.name}.")
 
 
 class EspHomeServerThread(threading.Thread):
-    def __init__(self, client_socket, api_key):
-        self.api_key = api_key
+    def __init__(self, client_socket: socket.socket, api_key: str):
+        self.api_key: str = api_key
         super(EspHomeServerThread, self).__init__(
             target=self.handle_streams, args=(client_socket,)
         )
@@ -136,14 +145,17 @@ class EspHomeServerThread(threading.Thread):
     def run(self) -> None:
         return super().run()
 
-    def add_entities(self, entities) -> None:
+    def add_entities(
+        self,
+        entities: Entities,
+    ) -> None:
         logger.info(f"Potential entities to add: {[x.name for x in entities]}")
         [self.entities.append(x) for x in entities if x.list_callback() is not None]
 
-    def read_varint(self, socket):
+    def read_varint(self, socket: socket.socket) -> int:
         """Read a VarInt from the socket."""
 
-        varint_buff = []
+        varint_buff: list[bytes] = []
         while True:
             byte = socket.recv(1)
             if len(byte) == 0:
@@ -153,8 +165,8 @@ class EspHomeServerThread(threading.Thread):
                 break
         return _DecodeVarint32(b"".join(varint_buff), 0)[0]
 
-    def read_varint_from_bytes(self, data):
-        varint_buff = []
+    def read_varint_from_bytes(self, data: bytes) -> tuple[int, int]:
+        varint_buff: list[int] = []
         for _, byte in enumerate(data):
             varint_buff.append(byte)
             if (byte & 0x80) == 0:
@@ -185,7 +197,7 @@ class EspHomeServerThread(threading.Thread):
 
         return message_data, message_type_name, message_type
 
-    def handle_streams(self, client_socket):
+    def handle_streams(self, client_socket: socket.socket):
         self.handle_unencrypted_stream(client_socket)
         self.handle_encrypted_stream(client_socket)
 
@@ -649,7 +661,7 @@ class EsphomeServer(object):
                 connection_from = ":".join([str(x) for x in addr])
                 logger.info(f"Connection from {connection_from}...")
                 esphome_server_thread = EspHomeServerThread(client_socket, self.api_key)
-                entities = [
+                entities: list[BaseEntity] = [
                     # sensors.DeadbeefEntity(esphome_server_thread),
                     # sensors.NowPlayingEntity(esphome_server_thread),
                     sensors.MprisMediaPlayerEntity(),

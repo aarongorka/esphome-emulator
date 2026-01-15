@@ -25,14 +25,14 @@ from . import api_pb2 as api
 
 logger = logging.getLogger("esphome_emulator")
 
-pgrep: Callable[..., str] = sh.pgrep  # pyright: ignore
+pgrep: Callable[..., str] = sh.pgrep  # ty:ignore[unresolved-attribute]
 try:
-    deadbeef: Callable[..., str] = sh.deadbeef  # pyright: ignore
+    deadbeef: Callable[..., str] = sh.deadbeef  # ty:ignore[unresolved-attribute]
 except sh.CommandNotFound:
     pass
 
 try:
-    gamemoded: Callable[..., str] = sh.gamemoded  # pyright: ignore
+    gamemoded: Callable[..., str] = sh.gamemoded  # ty:ignore[unresolved-attribute]
 except sh.CommandNotFound:
     pass
 
@@ -128,7 +128,7 @@ class AudioOutputEntity(SelectEntity):
 
     def get_pactl(self) -> sh.Command:
         if self.pactl is None:
-            pactl: sh.Command = sh.pactl  # pyright: ignore
+            pactl: sh.Command = sh.pactl  # ty:ignore[unresolved-attribute]
             self.pactl = pactl
             return pactl
         else:
@@ -235,7 +235,7 @@ class MonitorBacklightEntity(LightEntity):
 
     def get_ddcutil(self):
         if self.ddcutil is None:
-            ddcutil: Callable[..., str] = sh.ddcutil  # pyright: ignore
+            ddcutil: Callable[..., str] = sh.ddcutil  # ty:ignore[unresolved-attribute]
             self.ddcutil = ddcutil
             return ddcutil
         else:
@@ -358,7 +358,7 @@ class MonitorSelectEntity(SelectEntity):
 
     def get_ddcutil(self):
         if self.ddcutil is None:
-            ddcutil: Callable[..., str] = sh.ddcutil  # pyright: ignore
+            ddcutil: Callable[..., str] = sh.ddcutil  # ty:ignore[unresolved-attribute]
             self.ddcutil = ddcutil
             return ddcutil
         else:
@@ -449,7 +449,7 @@ class SystemctlMixin:
     def get_systemctl(self, user=False) -> sh.Command:
         if self.systemctl is None:
             if user:
-                systemctl: sh.Command = sh.systemctl  # pyright: ignore
+                systemctl: sh.Command = sh.systemctl  # ty:ignore[unresolved-attribute]
                 logger.debug("Got systemctl (user)...")
                 self.systemctl = systemctl
             else:
@@ -485,7 +485,7 @@ class SuspendButtonEntity(SystemctlMixin, ButtonEntity):  # pyright: ignore[repo
     def command_callback(self, command: api.ButtonCommandRequest | None):
         systemctl = self.get_systemctl()
         try:
-            sh.pkill("-f", "deadbeef|nvim|mpv")  # pyright: ignore
+            sh.pkill("-f", "deadbeef|nvim|mpv")  # ty:ignore[unresolved-attribute]
         except Exception:
             pass
         time.sleep(3)
@@ -1170,7 +1170,7 @@ class GamemodeTextSensorEntity(TextSensorEntity):
 
         title = None
         try:
-            xprop: sh.Command = sh.xprop  # pyright: ignore
+            xprop: sh.Command = sh.xprop  # ty:ignore[unresolved-attribute]
             window_id = (
                 (xprop("xprop", "-root", "_NET_ACTIVE_WINDOW") or "")
                 .splitlines()[-1]
@@ -1190,7 +1190,7 @@ class GamemodeTextSensorEntity(TextSensorEntity):
                 .strip('"')
             )
         except Exception:
-            logger.warn("Couldn't get window title for game.")
+            logger.warning("Couldn't get window title for game.")
 
         executable_fullpath = f"{props['Executable']}"
         executable_filename = executable_fullpath.rsplit("/")[-1]
@@ -1206,9 +1206,9 @@ class CurrentApplicationTextSensorEntity(TextSensorEntity):
         self.xprop = None
         super().__init__()
 
-    def get_xprop(self) -> Callable[[*Tuple[str, ...]], str]:
+    def get_xprop(self) -> Callable[..., str]:
         if self.xprop is None:
-            xprop = sh.xprop  # pyright: ignore
+            xprop = sh.xprop  # ty:ignore[unresolved-attribute]
             return xprop
         else:
             return self.xprop
@@ -1285,9 +1285,9 @@ class SuspendDisplayButtonEntity(ButtonEntity):
         super().__init__()
         return
 
-    def get_xset(self) -> Callable[[*Tuple[str, ...]], str]:
+    def get_xset(self) -> Callable[..., str]:
         if self.xset is None:
-            xset = sh.xset  # pyright: ignore
+            xset = sh.xset  # ty:ignore[unresolved-attribute]
             return xset
         else:
             return self.xset
