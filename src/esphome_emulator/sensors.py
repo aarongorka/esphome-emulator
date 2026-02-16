@@ -25,14 +25,14 @@ from . import api_pb2 as api
 
 logger = logging.getLogger("esphome_emulator")
 
-pgrep: Callable[..., str] = sh.pgrep  # ty:ignore[unresolved-attribute]
+pgrep: Callable[..., str] = sh.pgrep  # ty:ignore[unresolved-attribute]  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType, reportUnknownVariableType]
 try:
-    deadbeef: Callable[..., str] = sh.deadbeef  # ty:ignore[unresolved-attribute]
+    deadbeef: Callable[..., str] = sh.deadbeef  # ty:ignore[unresolved-attribute]  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue, reportUnknownVariableType]
 except sh.CommandNotFound:
     pass
 
 try:
-    gamemoded: Callable[..., str] = sh.gamemoded  # ty:ignore[unresolved-attribute]
+    gamemoded: Callable[..., str] = sh.gamemoded  # ty:ignore[unresolved-attribute]  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue, reportUnknownVariableType]
 except sh.CommandNotFound:
     pass
 
@@ -48,7 +48,7 @@ class DeadbeefEntity(MediaPlayerEntity):
         media = api.MediaPlayerStateResponse()
         media.key = self.key
         try:
-            pgrep(f="deadbeef")
+            _ = pgrep(f="deadbeef")
         except Exception:
             media.state = api.MEDIA_PLAYER_STATE_IDLE  # seems like this should be api.MEDIA_PLAYER_STATE_NONE but home assistant doesn't like it anymore
             logger.debug("Media is ~none~ idle.")
@@ -82,23 +82,23 @@ class DeadbeefEntity(MediaPlayerEntity):
             raise Exception("No command")  # TODO: fix command types
 
         if command.volume != 0:
-            deadbeef("--volume", command.volume * 100)
+            _ = deadbeef("--volume", command.volume * 100)
 
         if command.command == api.MEDIA_PLAYER_COMMAND_STOP:
-            deadbeef("--stop")
+            _ = deadbeef("--stop")
 
         if command.command == api.MEDIA_PLAYER_COMMAND_PAUSE:
-            deadbeef("--play-pause")
+            _ = deadbeef("--play-pause")
 
         if command.command == api.MEDIA_PLAYER_COMMAND_PLAY:
             if deadbeef("--nowplaying-tf", "%ispaused%") == "1":
-                deadbeef("--play-pause")
+                _ = deadbeef("--play-pause")
 
         if command.command == api.MEDIA_PLAYER_COMMAND_MUTE:
-            deadbeef("--volume", "0")
+            _ = deadbeef("--volume", "0")
 
         if command.command == api.MEDIA_PLAYER_COMMAND_UNMUTE:
-            deadbeef("--volume", "100")  # idk
+            _ = deadbeef("--volume", "100")  # idk
 
         return self.state_callback()
 
@@ -123,20 +123,27 @@ class DeadbeefEntity(MediaPlayerEntity):
 
 class AudioOutputEntity(SelectEntity):
     def __init__(self):
-        self.pactl = None
+        self.pactl: sh.Command | None = None
         super().__init__()
 
     def get_pactl(self) -> sh.Command:
         if self.pactl is None:
-            pactl: sh.Command = sh.pactl  # ty:ignore[unresolved-attribute]
+            pactl: sh.Command = sh.pactl  # ty:ignore[unresolved-attribute]  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue, reportUnknownVariableType]
             self.pactl = pactl
-            return pactl
+            return pactl  # pyright: ignore[reportUnknownVariableType]
         else:
             return self.pactl
 
-    def filter_sinks(self, sinks: list[str]) -> list[str]:
+    def filter_sink(self, sink: str) -> bool:
         """Remove unwanted sinks from being displayed."""
-        return [sink for sink in sinks if "microp" not in sink.lower()]
+        denylist = ["yeti", "quisk"]
+        is_denied = len([deny for deny in denylist if deny in sink.lower()]) > 0
+        is_allowed = not is_denied
+        return is_allowed
+
+    def parse_sinks(self, output: str) -> list[str]:
+        sinks = [x.split("\t")[1] for x in output.strip().split("\n")]
+        return sinks
 
     def truncate_name_to_fit(self, sink: str, count: int) -> str:
         name_length_allowed = int(62 / count)
@@ -146,9 +153,14 @@ class AudioOutputEntity(SelectEntity):
         pactl = self.get_pactl()
         output = pactl("list", "short", "sinks")
         if output is not None:
-            return self.filter_sinks(
-                [x.split("\t")[1] for x in output.strip().split("\n")]
-            )
+            sinks = self.parse_sinks(str(output))
+            filtered_sinks = [x for x in filter(self.filter_sink, sinks)]
+            truncated_sinks = [
+                self.truncate_name_to_fit(x, len(filtered_sinks))
+                for x in filtered_sinks
+            ]
+            return truncated_sinks
+
         else:
             return []
 
@@ -195,7 +207,7 @@ class AudioOutputEntity(SelectEntity):
         try:
             desired_sink = [x for x in sinks if command.state in x]
             logger.debug(f"Setting default sink to {desired_sink}...")
-            pactl("set-default-sink", desired_sink)
+            _ = pactl("set-default-sink", desired_sink)
             logger.debug(f"Default sink set to {desired_sink}.")
         except AttributeError:
             pass
@@ -230,14 +242,14 @@ class AudioOutputEntity(SelectEntity):
 
 class MonitorBacklightEntity(LightEntity):
     def __init__(self):
-        self.ddcutil = None
+        self.ddcutil: sh.Command | None = None
         super().__init__()
 
-    def get_ddcutil(self):
+    def get_ddcutil(self) -> sh.Command:
         if self.ddcutil is None:
-            ddcutil: Callable[..., str] = sh.ddcutil  # ty:ignore[unresolved-attribute]
+            ddcutil: sh.Command = sh.ddcutil  # ty:ignore[unresolved-attribute]  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue, reportUnknownVariableType]
             self.ddcutil = ddcutil
-            return ddcutil
+            return ddcutil  # pyright: ignore[reportUnknownVariableType]
         else:
             return self.ddcutil
 
@@ -248,16 +260,24 @@ class MonitorBacklightEntity(LightEntity):
         power = None
         try:
             ddcutil = self.get_ddcutil()
-            output: str = ddcutil("getvcp", "d6")
+            monitor_state_output = ddcutil("getvcp", "d6")
         except Exception:
             logger.debug("Failed to query monitor power state")
             response.state = False
             return response
 
         try:
-            power = output.strip().split(":", 1)[1].split("=")[1].strip(")")
+            power = (
+                str(monitor_state_output)
+                .strip()
+                .split(":", 1)[1]
+                .split("=")[1]
+                .strip(")")
+            )
         except Exception:
-            logger.debug(f"Could not determine power state of monitor: {output}")
+            logger.debug(
+                f"Could not determine power state of monitor: {monitor_state_output}"
+            )
 
         if power is not None and power != "0x01":
             response.state = False
@@ -273,9 +293,9 @@ class MonitorBacklightEntity(LightEntity):
 
         # <blah blah>: current value =     93, max value =   100
         try:
-            output: str = ddcutil("getvcp", "10")
+            output = ddcutil("getvcp", "10")
             brightness = (
-                int(output.split(":")[1].split(",")[0].split("=")[1].strip()) / 100
+                int(str(output).split(":")[1].split(",")[0].split("=")[1].strip()) / 100
             )
         except Exception:
             response.state = False
@@ -291,7 +311,7 @@ class MonitorBacklightEntity(LightEntity):
         if os.path.isfile("/usr/bin/ddcutil"):
             try:
                 ddcutil = self.get_ddcutil()
-                output: str = ddcutil("getvcp", "d6")
+                output = ddcutil("getvcp", "d6")
                 logger.debug("Successfully got backlight state: %s", output)
             except Exception:
                 logger.debug("Error getting displays, not enabling backlight sensor.")
@@ -320,15 +340,15 @@ class MonitorBacklightEntity(LightEntity):
             if command and command.has_state:
                 if not command.state:
                     logger.debug("Turning the monitor off...")
-                    ddcutil("setvcp", "d6", "5")
+                    _ = ddcutil("setvcp", "d6", "5")
                 if command.state and not command.has_brightness:
                     logger.debug("Turning the monitor on...")
-                    ddcutil("setvcp", "d6", "1")
+                    _ = ddcutil("setvcp", "d6", "1")
 
             if command and command.has_brightness:
                 brightness = int(command.brightness * 100)
                 logger.debug("Setting brightness to: %s", brightness)
-                ddcutil("setvcp", "10", brightness)
+                _ = ddcutil("setvcp", "10", brightness)
         except Exception:
             logger.exception("Couldn't run command.")
 
@@ -341,7 +361,7 @@ class MonitorBacklightEntity(LightEntity):
 
 class MonitorSelectEntity(SelectEntity):
     def __init__(self):
-        self.ddcutil = None
+        self.ddcutil: sh.Command | None = None
         # These are the values we need to send for `setvcp`
         self.set_inputs: dict[str, str] = {
             "0x11": "HDMI 1",  # can actually send anything other than the two below
@@ -356,11 +376,11 @@ class MonitorSelectEntity(SelectEntity):
         }
         super().__init__()
 
-    def get_ddcutil(self):
+    def get_ddcutil(self):  # pyright: ignore[reportUnknownParameterType]
         if self.ddcutil is None:
-            ddcutil: Callable[..., str] = sh.ddcutil  # ty:ignore[unresolved-attribute]
+            ddcutil: sh.Command = sh.ddcutil  # ty:ignore[unresolved-attribute]  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType, reportAttributeAccessIssue]
             self.ddcutil = ddcutil
-            return ddcutil
+            return ddcutil  # pyright: ignore[reportUnknownVariableType]
         else:
             return self.ddcutil
 
@@ -373,7 +393,7 @@ class MonitorSelectEntity(SelectEntity):
         if os.path.isfile("/usr/bin/ddcutil"):
             try:
                 ddcutil = self.get_ddcutil()
-                output: str = ddcutil("getvcp", "d6")
+                output = ddcutil("getvcp", "d6")
                 logger.debug("Successfully got backlight state: %s", output)
             except Exception:
                 logger.debug("Error getting displays, not enabling backlight sensor.")
@@ -406,7 +426,7 @@ class MonitorSelectEntity(SelectEntity):
             ddcutil = self.get_ddcutil()
             output = ddcutil("getvcp", "60")
             # VCP code 0x60 (Input Source                  ): DVI-1 (sl=0x03)
-            current_code = output.split(":")[1].split("=")[1].rstrip().rstrip(")")
+            current_code = str(output).split(":")[1].split("=")[1].rstrip().rstrip(")")
         except Exception:
             logger.debug(f"Failed to parse output: {output}")
             response.missing_state = True
@@ -430,7 +450,7 @@ class MonitorSelectEntity(SelectEntity):
             if len(matches) > 0:
                 desired_input = matches[0]
                 logger.debug(f"Setting display to {desired_input}...")
-                ddcutil("setvcp", "60", desired_input)
+                _ = ddcutil("setvcp", "60", desired_input)
             else:
                 logger.error(
                     f"Failed to find matching input for {command} and {self.set_inputs}"
@@ -444,12 +464,12 @@ class MonitorSelectEntity(SelectEntity):
 class SystemctlMixin:
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.systemctl = None
+        self.systemctl: sh.Command | None = None
 
-    def get_systemctl(self, user=False) -> sh.Command:
+    def get_systemctl(self, user: bool = False) -> sh.Command:
         if self.systemctl is None:
             if user:
-                systemctl: sh.Command = sh.systemctl  # ty:ignore[unresolved-attribute]
+                systemctl: sh.Command = sh.systemctl  # ty:ignore[unresolved-attribute]  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
                 logger.debug("Got systemctl (user)...")
                 self.systemctl = systemctl
             else:
@@ -464,7 +484,7 @@ class SystemctlMixin:
 class SuspendButtonEntity(SystemctlMixin, ButtonEntity):  # pyright: ignore[reportUnsafeMultipleInheritance]
     def __init__(self):
         super().__init__()
-        self.key = 2
+        self.key: int = 2
         return
 
     @override
@@ -485,7 +505,7 @@ class SuspendButtonEntity(SystemctlMixin, ButtonEntity):  # pyright: ignore[repo
     def command_callback(self, command: api.ButtonCommandRequest | None):
         systemctl = self.get_systemctl()
         try:
-            sh.pkill("-f", "deadbeef|nvim|mpv")  # ty:ignore[unresolved-attribute]
+            _ = sh.pkill("-f", "deadbeef|nvim|mpv")  # ty:ignore[unresolved-attribute]  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
         except Exception:
             pass
         time.sleep(3)
@@ -542,7 +562,7 @@ class RestartButtonEntity(SystemctlMixin, ButtonEntity):  # pyright: ignore[repo
     def command_callback(self, command: api.ButtonCommandRequest | None):
         systemctl = self.get_systemctl()
         logger.debug("Restarting, not that you're going to see this :)")
-        systemctl("restart")
+        _ = systemctl("restart")
 
 
 class RestartServiceButtonEntity(SystemctlMixin, ButtonEntity):  # pyright: ignore[reportUnsafeMultipleInheritance]
@@ -569,7 +589,7 @@ class RestartServiceButtonEntity(SystemctlMixin, ButtonEntity):  # pyright: igno
         systemctl = self.get_systemctl(user=True)
         logger.debug("Restarting self...")
         try:
-            systemctl("restart", "--user", "esphome_emulator.service")
+            _ = systemctl("restart", "--user", "esphome_emulator.service")
         except sh.SignalException:
             pass
 
@@ -578,8 +598,8 @@ class MprisMixin:
     def __init__(self, *args, **kwargs):
         self.bus: dbus.SessionBus | None = None
 
-        self.dbus_introspection = None
-        self.dbus_introspection_interface = None
+        self.dbus_introspection: dbus.Interface | None = None
+        self.dbus_introspection_interface: dbus.Interface | None = None
 
         self.mprises: dict[str, ProxyObject] = {}
         self.mpris_properties_interfaces: dict[str, dbus.Interface] = {}
@@ -968,6 +988,7 @@ class NowPlayingEntity(TextSensorEntity):
         self.key = 9
         return
 
+    @override
     def list_callback(self) -> api.ListEntitiesTextSensorResponse | None:
         """Determines if deadbeef is installed and returns an entity if true."""
 
@@ -1116,6 +1137,8 @@ class GamemodeTextSensorEntity(TextSensorEntity):
             return self.gamemode_properties_interface
 
     def get_games(self) -> list[str]:
+        """Use gamemode to get list of running game paths (?)"""
+
         gamemode_interface = self.get_gamemode_interface()
         response = gamemode_interface.ListGames()
         games_list = [str(x) for x in [x[1] for x in response]]
@@ -1170,9 +1193,9 @@ class GamemodeTextSensorEntity(TextSensorEntity):
 
         title = None
         try:
-            xprop: sh.Command = sh.xprop  # ty:ignore[unresolved-attribute]
-            window_id = (
-                (xprop("xprop", "-root", "_NET_ACTIVE_WINDOW") or "")
+            xprop: sh.Command = sh.xprop  # ty:ignore[unresolved-attribute]  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
+            window_id: str = (
+                str(xprop("xprop", "-root", "_NET_ACTIVE_WINDOW") or "")
                 .splitlines()[-1]
                 .split(":")[-1]
                 .strip()
@@ -1182,7 +1205,7 @@ class GamemodeTextSensorEntity(TextSensorEntity):
             title = (
                 [
                     x
-                    for x in (xprop("-id", window_id) or "").splitlines()
+                    for x in str(xprop("-id", window_id) or "").splitlines()
                     if x.startswith("WM_NAME")
                 ][0]
                 .split("=")[-1]
@@ -1194,9 +1217,7 @@ class GamemodeTextSensorEntity(TextSensorEntity):
 
         executable_fullpath = f"{props['Executable']}"
         executable_filename = executable_fullpath.rsplit("/")[-1]
-        game_name = executable_filename.rsplit(".exe")[
-            0
-        ]  # TODO: window name or similar?
+        game_name = executable_filename.rsplit(".exe")[0]
         response.state = title or game_name
         return response
 
@@ -1208,7 +1229,7 @@ class CurrentApplicationTextSensorEntity(TextSensorEntity):
 
     def get_xprop(self) -> Callable[..., str]:
         if self.xprop is None:
-            xprop = sh.xprop  # ty:ignore[unresolved-attribute]
+            xprop = sh.xprop  # ty:ignore[unresolved-attribute]  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
             return xprop
         else:
             return self.xprop
@@ -1219,7 +1240,7 @@ class CurrentApplicationTextSensorEntity(TextSensorEntity):
 
         try:
             xprop = self.get_xprop()
-            xprop("-root")
+            _ = xprop("-root")
         except Exception:
             logger.exception("Something went wrong, not enabling sensor.")
             return None
@@ -1287,7 +1308,7 @@ class SuspendDisplayButtonEntity(ButtonEntity):
 
     def get_xset(self) -> Callable[..., str]:
         if self.xset is None:
-            xset = sh.xset  # ty:ignore[unresolved-attribute]
+            xset = sh.xset  # ty:ignore[unresolved-attribute]  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
             return xset
         else:
             return self.xset
@@ -1317,7 +1338,7 @@ class SuspendDisplayButtonEntity(ButtonEntity):
         logger.debug("Suspending display.")
         try:
             xset = self.get_xset()
-            xset("dpms", "force", "suspend")
+            _ = xset("dpms", "force", "suspend")
         except Exception:
             logger.exception("Could not suspend display.")
 

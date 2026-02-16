@@ -1,27 +1,36 @@
 #!/usr/bin/env python
 from __future__ import annotations
 
+import base64
 import binascii
 import logging
 import os
 import pathlib
 import secrets
 import signal
+import socket
 import struct
+import threading
 import time
+import uuid
 from itertools import cycle
 
 import typer
 from google.protobuf import message
+from google.protobuf.internal.decoder import _DecodeVarint32  # pyright: ignore
 from google.protobuf.message import Message
 from noise.connection import NoiseConnection
 from rich.logging import RichHandler
+from zeroconf import ServiceInfo, ServiceListener, Zeroconf
 
 from esphome_emulator.entities import (
     BaseEntity,
     Entities,
     StateResponses,
 )
+
+from . import api_pb2 as api
+from . import sensors as sensors
 
 logging.basicConfig(
     level=logging.CRITICAL,
@@ -33,17 +42,6 @@ logger.setLevel(logging.INFO)
 logger.debug("Logging enabled.")
 
 app = typer.Typer(help="ESPHome device in Python.", pretty_exceptions_enable=False)
-
-import base64
-import socket
-import threading
-import uuid
-
-from google.protobuf.internal.decoder import _DecodeVarint32  # pyright: ignore
-from zeroconf import ServiceInfo, ServiceListener, Zeroconf
-
-from . import api_pb2 as api
-from . import sensors as sensors
 
 
 # TODO: clean this mess up
@@ -330,7 +328,7 @@ class EspHomeServerThread(threading.Thread):
                     return
 
                 message_data, message_type_name, message_type = unpacked
-                responses = [
+                responses: list[Message] = [
                     x
                     for x in self.handle_message(
                         message_data, message_type_name, message_type
