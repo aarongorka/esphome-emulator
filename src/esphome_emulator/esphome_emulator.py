@@ -677,6 +677,7 @@ class EsphomeServer(object):
                     sensors.MonitorSelectEntity(),
                     sensors.StatusEntity(),
                     sensors.SuspendDisplayButtonEntity(),
+                    sensors.PingButtonEntity(),
                 ]
                 esphome_server_thread.add_entities(entities=entities)
 

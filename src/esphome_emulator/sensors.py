@@ -4,7 +4,7 @@ import logging
 import os
 import socket
 import time
-from typing import Callable, Tuple, override
+from typing import Callable, final, override
 
 import dbus
 import psutil
@@ -155,11 +155,7 @@ class AudioOutputEntity(SelectEntity):
         if output is not None:
             sinks = self.parse_sinks(str(output))
             filtered_sinks = [x for x in filter(self.filter_sink, sinks)]
-            truncated_sinks = [
-                self.truncate_name_to_fit(x, len(filtered_sinks))
-                for x in filtered_sinks
-            ]
-            return truncated_sinks
+            return filtered_sinks
 
         else:
             return []
@@ -376,7 +372,7 @@ class MonitorSelectEntity(SelectEntity):
         }
         super().__init__()
 
-    def get_ddcutil(self):  # pyright: ignore[reportUnknownParameterType]
+    def get_ddcutil(self) -> sh.Command:
         if self.ddcutil is None:
             ddcutil: sh.Command = sh.ddcutil  # ty:ignore[unresolved-attribute]  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType, reportAttributeAccessIssue]
             self.ddcutil = ddcutil
@@ -473,7 +469,7 @@ class SystemctlMixin:
                 logger.debug("Got systemctl (user)...")
                 self.systemctl = systemctl
             else:
-                systemctl: sh.Command = sh.sudo.systemctl  # pyright: ignore
+                systemctl: sh.Command = sh.sudo.systemctl  # pyright: ignore[reportAny, reportFunctionMemberAccess, reportUnknownMemberType]
                 logger.debug("Got systemctl...")
                 self.systemctl = systemctl
             return systemctl
@@ -536,7 +532,7 @@ class PowerOffButtonEntity(SystemctlMixin, ButtonEntity):  # pyright: ignore[rep
     def command_callback(self, command: api.ButtonCommandRequest | None):
         systemctl = self.get_systemctl()
         logger.debug("Powering off, not that you're going to see this :)")
-        systemctl("poweroff")
+        _ = systemctl("poweroff")
 
 
 class RestartButtonEntity(SystemctlMixin, ButtonEntity):  # pyright: ignore[reportUnsafeMultipleInheritance]
@@ -674,8 +670,8 @@ class MprisMixin:
     def refresh_interfaces(self) -> None:
         mpris_names = self.get_mpris_names()
         for mpris_name in mpris_names:
-            self.get_mpris_properties_interface(mpris_name)
-            self.get_mpris_player_interface(mpris_name)
+            _ = self.get_mpris_properties_interface(mpris_name)
+            _ = self.get_mpris_player_interface(mpris_name)
 
     def get_mpris_playback_status(self, mpris_name: str) -> str | None:
         try:
@@ -1048,7 +1044,7 @@ class GamingStatusEntity(BinaryEntity):
     def list_callback(self) -> api.ListEntitiesBinarySensorResponse | None:
         if os.path.isfile("/usr/bin/gamemoded"):
             try:
-                gamemoded("-s")
+                _ = gamemoded("-s")
             except Exception:
                 logger.error("Failed to run gamemoded -s, not adding sensor...")
                 return None
@@ -1150,7 +1146,7 @@ class GamemodeTextSensorEntity(TextSensorEntity):
         """Determines if gamemode is running and returns an entity."""
 
         try:
-            self.get_games()
+            _ = self.get_games()
         except dbus.exceptions.DBusException:
             logger.warning("Failed to get gamemode games, not enabling sensor.")
             return None
@@ -1193,7 +1189,7 @@ class GamemodeTextSensorEntity(TextSensorEntity):
 
         title = None
         try:
-            xprop: sh.Command = sh.xprop  # ty:ignore[unresolved-attribute]  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
+            xprop: sh.Command = sh.xprop  # ty:ignore[unresolved-attribute]  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue, reportUnknownVariableType]
             window_id: str = (
                 str(xprop("xprop", "-root", "_NET_ACTIVE_WINDOW") or "")
                 .splitlines()[-1]
@@ -1222,6 +1218,7 @@ class GamemodeTextSensorEntity(TextSensorEntity):
         return response
 
 
+@final
 class CurrentApplicationTextSensorEntity(TextSensorEntity):
     def __init__(self):
         self.xprop = None
@@ -1302,7 +1299,7 @@ class SuspendDisplayButtonEntity(ButtonEntity):
     """xset dpms force suspend"""
 
     def __init__(self):
-        self.xset: Callable[[*Tuple[str, ...]], str] | None = None
+        self.xset: Callable[[*tuple[str, ...]], str] | None = None
         super().__init__()
         return
 
@@ -1392,3 +1389,29 @@ class CpuSensorEntity(SensorEntity):
         cpu = psutil.cpu_percent(interval=1)
         response.state = cpu
         return response
+
+
+class PingButtonEntity(ButtonEntity):
+    def __init__(self):
+        super().__init__()
+
+    @override
+    def list_callback(self) -> api.ListEntitiesButtonResponse | None:
+        response = api.ListEntitiesButtonResponse()
+        response.key = self.key
+        hostname = socket.gethostname()
+        response.object_id = f"{hostname}.ping"
+        response.unique_id = f"_{hostname}.ping"
+        response.name = "Ping"
+        response.icon = "mdi:table-tennis"
+        response.disabled_by_default = False
+        response.entity_category = api.ENTITY_CATEGORY_DIAGNOSTIC
+        return response
+
+    @override
+    def command_callback(self, command: api.ButtonCommandRequest | None):
+        logger.debug("Pong")
+        try:
+            sh.paplay("/usr/share/sounds/sound-icons/capital")  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]  # ty:ignore[unresolved-attribute]
+        except Exception:
+            pass
