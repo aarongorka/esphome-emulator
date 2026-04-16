@@ -37,7 +37,7 @@ logging.basicConfig(
     format="%(message)s",
     handlers=[RichHandler(show_time=False)],
 )
-logger = logging.getLogger("esphome_emulator")
+logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logger.debug("Logging enabled.")
 
@@ -392,7 +392,7 @@ class EspHomeServerThread(threading.Thread):
             logger.debug(f"Parsed {request.DESCRIPTOR.name}: {str(request).strip()}")
 
             response = api.HelloResponse()
-            response.server_info = "esphome_emulator"
+            response.server_info = "esphome-emulator"
             response.name = socket.gethostname()
             return [response]
 
@@ -615,7 +615,7 @@ class EsphomeServer(object):
     def run(self):
         """Run the ESPHome-like server."""
 
-        logger.info("Starting esphome_emulator...")
+        logger.info("Starting esphome-emulator...")
 
         wait_for_ip_address()
 
@@ -725,7 +725,7 @@ def run(
     api_key: str = typer.Option(envvar="ESPHOME_EMULATOR_API_KEY"),
     debug: bool = typer.Option(envvar="ESPHOME_EMULATOR_DEBUG", default=False),
 ):
-    """Run the esphome_emulator server."""
+    """Run the esphome-emulator server."""
 
     if debug:
         logger.setLevel(logging.DEBUG)
@@ -743,9 +743,9 @@ def install(
     """Install and configure the unit file"""
 
     logger.info("Installing unit file...")
-    unit_path = os.path.expanduser("~/.config/systemd/user/esphome_emulator.service")
+    unit_path = os.path.expanduser("~/.config/systemd/user/esphome-emulator.service")
     unit_fragment_path = os.path.expanduser(
-        "~/.config/systemd/user/esphome_emulator.service.d/override.conf"
+        "~/.config/systemd/user/esphome-emulator.service.d/override.conf"
     )
     if not force:
         if os.path.exists(unit_path):
@@ -758,7 +758,7 @@ def install(
             return
     key = secrets.token_bytes(32)
     base64_key = base64.b64encode(key).decode()
-    bin_path = os.path.expanduser("~/.local/bin/esphome_emulator")
+    bin_path = os.path.expanduser("~/.local/bin/esphome-emulator")
     unit = f"""[Unit]
 Description=Esphome Emulator
 After=networking.target
@@ -787,5 +787,5 @@ Environment="ESPHOME_EMULATOR_API_KEY={base64_key}"
     logger.info("Your API key for Home Assistant is: %s", base64_key)
 
     logger.info(
-        "Finished installation, please run: systemctl daemon-reload --user && systemctl enable --user --now esphome_emulator"
+        "Finished installation, please run: systemctl daemon-reload --user && systemctl enable --user --now esphome-emulator"
     )

@@ -23,7 +23,7 @@ from esphome_emulator.entities import (
 
 from . import api_pb2 as api
 
-logger = logging.getLogger("esphome_emulator")
+logger = logging.getLogger(__name__)
 
 pgrep: Callable[..., str] = sh.pgrep  # ty:ignore[unresolved-attribute]  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType, reportUnknownVariableType]
 try:

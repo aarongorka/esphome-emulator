@@ -18,7 +18,7 @@ dependencies = [
 
 [tool.poetry.scripts]
 [project.scripts]
-esphome_emulator = "esphome_emulator.esphome_emulator:app"
+esphome-emulator = "esphome_emulator.esphome_emulator:app"
 
 [build-system]
 build-backend = "uv_build"

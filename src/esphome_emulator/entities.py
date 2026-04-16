@@ -8,7 +8,7 @@ from typing import override
 
 from . import api_pb2 as api
 
-logger = logging.getLogger("esphome_emulator")
+logger = logging.getLogger(__name__)
 
 ListEntitiesResponses = (
     api.ListEntitiesAlarmControlPanelResponse
